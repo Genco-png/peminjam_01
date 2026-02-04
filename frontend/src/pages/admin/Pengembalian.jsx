@@ -23,12 +23,12 @@ const PengembalianPage = () => {
 
     const fetchActiveLoans = async () => {
         try {
-            // Fetch loans with status 'Dipinjam' or 'Terlambat'
-            const response = await peminjamanAPI.getAll({ status: 'Dipinjam' });
-            const overdueResponse = await peminjamanAPI.getAll({ status: 'Terlambat' });
-            setLoans([...response.data.data, ...overdueResponse.data.data]);
+            setLoading(true);
+            // Fetch loans that have return_requested = TRUE
+            const response = await pengembalianAPI.getAll();
+            setLoans(response.data.data);
         } catch (error) {
-            console.error('Error fetching loans:', error);
+            console.error('Error fetching return requests:', error);
         } finally {
             setLoading(false);
         }
@@ -71,7 +71,10 @@ const PengembalianPage = () => {
 
     const openModal = (loan) => {
         setSelectedLoan(loan);
-        setFormData({ ...formData, jumlah_kembali: loan.jumlah });
+        const totalQuantity = loan.is_multi_item
+            ? loan.items?.reduce((sum, item) => sum + item.jumlah, 0) || 0
+            : loan.jumlah;
+        setFormData({ ...formData, jumlah_kembali: totalQuantity });
         setShowModal(true);
     };
 
@@ -107,34 +110,68 @@ const PengembalianPage = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
-                                {loans.map((loan) => (
-                                    <tr key={loan.id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4">
-                                            <div className="text-sm font-medium text-gray-900">{loan.nama_peminjam}</div>
-                                        </td>
-                                        <td className="px-6 py-4 text-sm text-gray-900">{loan.nama_alat} ({loan.jumlah})</td>
-                                        <td className="px-6 py-4 text-sm text-gray-900">
-                                            {format(new Date(loan.tanggal_pinjam), 'dd/MM/yyyy')}
-                                        </td>
-                                        <td className="px-6 py-4 text-sm text-gray-900">
-                                            {format(new Date(loan.tanggal_kembali_rencana), 'dd/MM/yyyy')}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`badge badge-${loan.status.toLowerCase()}`}>
-                                                {loan.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <button 
-                                                onClick={() => openModal(loan)}
-                                                className="btn btn-primary flex items-center space-x-1 py-1"
-                                            >
-                                                <FiRotateCcw size={14} />
-                                                <span>Proses</span>
-                                            </button>
+                                {loans.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                                            Tidak ada permintaan pengembalian saat ini
                                         </td>
                                     </tr>
-                                ))}
+                                ) : (
+                                    loans.map((loan) => (
+                                        <tr key={loan.id} className="hover:bg-gray-50 bg-blue-50 border-l-4 border-blue-500">
+                                            <td className="px-6 py-4">
+                                                <div className="text-sm font-medium text-gray-900">{loan.nama_peminjam}</div>
+                                                <div className="text-xs text-gray-500">{loan.username}</div>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-900">
+                                                {loan.is_multi_item ? (
+                                                    <div>
+                                                        <div className="font-semibold">Multi-Item ({loan.items?.length || 0} jenis)</div>
+                                                        <div className="text-xs text-gray-600 mt-1">
+                                                            {loan.items?.map((item, idx) => (
+                                                                <div key={idx}>{item.nama_alat} ({item.jumlah}x)</div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div>
+                                                        {loan.nama_alat} ({loan.jumlah})
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-900">
+                                                {format(new Date(loan.tanggal_pinjam), 'dd/MM/yyyy')}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-900">
+                                                {format(new Date(loan.tanggal_kembali_rencana), 'dd/MM/yyyy')}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-col gap-1">
+                                                    <span className={`badge badge-${loan.status.toLowerCase()}`}>
+                                                        {loan.status}
+                                                    </span>
+                                                    <span className="badge bg-blue-100 text-blue-700 text-xs">
+                                                        Permintaan Kembali
+                                                    </span>
+                                                    {loan.hari_terlambat_sekarang > 0 && (
+                                                        <span className="text-xs text-red-600 font-semibold">
+                                                            Terlambat {loan.hari_terlambat_sekarang} hari
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <button
+                                                    onClick={() => openModal(loan)}
+                                                    className="btn btn-primary flex items-center space-x-1 py-1"
+                                                >
+                                                    <FiRotateCcw size={14} />
+                                                    <span>Verifikasi & Proses</span>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>
@@ -153,26 +190,36 @@ const PengembalianPage = () => {
                                     </div>
                                     <div>
                                         <p className="text-gray-500">Alat</p>
-                                        <p className="font-medium">{selectedLoan?.nama_alat} ({selectedLoan?.jumlah})</p>
+                                        <div className="font-medium">
+                                            {selectedLoan?.is_multi_item ? (
+                                                <ul className="text-xs list-disc list-inside">
+                                                    {selectedLoan.items?.map((item, idx) => (
+                                                        <li key={idx}>{item.nama_alat} ({item.jumlah}x)</li>
+                                                    ))}
+                                                </ul>
+                                            ) : (
+                                                <span>{selectedLoan?.nama_alat} ({selectedLoan?.jumlah})</span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Kembali (Aktual)</label>
-                                    <input 
-                                        type="date" 
+                                    <input
+                                        type="date"
                                         value={formData.tanggal_kembali}
-                                        onChange={(e) => setFormData({...formData, tanggal_kembali: e.target.value})}
-                                        className="input" 
-                                        required 
+                                        onChange={(e) => setFormData({ ...formData, tanggal_kembali: e.target.value })}
+                                        className="input"
+                                        required
                                     />
                                 </div>
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Kondisi Alat</label>
-                                    <select 
+                                    <select
                                         value={formData.kondisi_alat}
-                                        onChange={(e) => setFormData({...formData, kondisi_alat: e.target.value})}
+                                        onChange={(e) => setFormData({ ...formData, kondisi_alat: e.target.value })}
                                         className="input"
                                     >
                                         <option value="Baik">Baik</option>
@@ -184,10 +231,10 @@ const PengembalianPage = () => {
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Keterangan</label>
-                                    <textarea 
+                                    <textarea
                                         value={formData.keterangan}
-                                        onChange={(e) => setFormData({...formData, keterangan: e.target.value})}
-                                        className="input" 
+                                        onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
+                                        className="input"
                                         rows="2"
                                         placeholder="Keterangan tambahan..."
                                     />

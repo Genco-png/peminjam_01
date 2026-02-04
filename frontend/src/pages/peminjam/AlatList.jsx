@@ -111,7 +111,8 @@ const AlatListPage = () => {
                 keperluan: ''
             });
         } catch (error) {
-            alert(error.response?.data?.message || 'Gagal mengirim permintaan');
+            const errorMsg = error.response?.data?.error || error.response?.data?.message || 'Gagal mengirim permintaan';
+            alert(`Error: ${errorMsg}`);
         }
     };
 

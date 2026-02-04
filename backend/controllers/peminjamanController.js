@@ -247,15 +247,15 @@ exports.createPeminjaman = async (req, res) => {
         });
 
     } catch (error) {
-        await connection.rollback();
+        if (connection) await connection.rollback();
         console.error('Create peminjaman error:', error);
         res.status(500).json({
             success: false,
             message: 'Internal server error',
-            error: error.message
+            error: error.sqlMessage || error.message || 'Unknown database error'
         });
     } finally {
-        connection.release();
+        if (connection) connection.release();
     }
 };
 
@@ -428,3 +428,71 @@ exports.updateOverdueStatus = async (req, res) => {
         });
     }
 };
+
+// Request return (Peminjam only)
+exports.requestReturn = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const user_id = req.user.id;
+
+        // Check if peminjaman exists and belongs to user
+        const [peminjaman] = await db.promisePool.execute(
+            `SELECT p.*, u.nama as nama_peminjam
+             FROM peminjaman p
+             JOIN users u ON p.user_id = u.id
+             WHERE p.id = ? AND p.user_id = ?`,
+            [id, user_id]
+        );
+
+        if (peminjaman.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Peminjaman not found or does not belong to you'
+            });
+        }
+
+        const loan = peminjaman[0];
+
+        // Check if loan is in valid status for return request
+        if (!['Approved', 'Dipinjam', 'Terlambat'].includes(loan.status)) {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot request return for loan with status: ${loan.status}`
+            });
+        }
+
+        // Check if return already requested
+        if (loan.return_requested) {
+            return res.status(400).json({
+                success: false,
+                message: 'Return request already submitted. Please wait for staff verification.'
+            });
+        }
+
+        // Update return_requested flag
+        await db.promisePool.execute(
+            'UPDATE peminjaman SET return_requested = TRUE, return_requested_at = NOW() WHERE id = ?',
+            [id]
+        );
+
+        // Log activity
+        await db.promisePool.execute(
+            'INSERT INTO log_aktivitas (user_id, aksi, tabel, record_id, detail) VALUES (?, ?, ?, ?, ?)',
+            [user_id, 'REQUEST_RETURN', 'peminjaman', id, `${loan.nama_peminjam} mengajukan pengembalian untuk ${loan.kode_peminjaman}`]
+        );
+
+        res.json({
+            success: true,
+            message: 'Return request submitted successfully. Please wait for staff verification.'
+        });
+
+    } catch (error) {
+        console.error('Request return error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: error.message
+        });
+    }
+};
+

@@ -26,6 +26,20 @@ const MyLoansPage = () => {
         }
     };
 
+    const handleRequestReturn = async (loanId) => {
+        if (!confirm('Apakah Anda yakin ingin mengajukan pengembalian? Petugas akan segera memverifikasi permintaan Anda.')) {
+            return;
+        }
+
+        try {
+            await peminjamanAPI.requestReturn(loanId);
+            alert('Permintaan pengembalian berhasil diajukan! Silakan tunggu verifikasi dari petugas.');
+            fetchMyLoans(); // Refresh the list
+        } catch (error) {
+            alert(error.response?.data?.message || 'Gagal mengajukan pengembalian');
+        }
+    };
+
     const getStatusColor = (loan) => {
         if (loan.status === 'Selesai') return 'gray';
         if (loan.is_overdue) return 'red';
@@ -96,6 +110,21 @@ const MyLoansPage = () => {
                                                 <p className="text-xs text-red-700 mt-1">
                                                     Segera kembalikan alat untuk menghindari denda bertambah.
                                                     Denda saat ini: <span className="font-bold">Rp {currentLateFee.toLocaleString()}</span>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Return Request Pending Banner */}
+                                    {loan.return_requested && isActive && (
+                                        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start space-x-2">
+                                            <FiClock className="text-blue-600 mt-0.5 flex-shrink-0" size={20} />
+                                            <div className="flex-1">
+                                                <p className="text-sm font-bold text-blue-800">
+                                                    MENUNGGU VERIFIKASI PETUGAS
+                                                </p>
+                                                <p className="text-xs text-blue-700 mt-1">
+                                                    Permintaan pengembalian Anda sedang diproses. Silakan serahkan alat ke petugas.
                                                 </p>
                                             </div>
                                         </div>
@@ -193,14 +222,19 @@ const MyLoansPage = () => {
                                                 )}
 
                                                 {/* Return Button for Peminjam */}
-                                                {isActive && (
+                                                {isActive && !loan.return_requested && (
                                                     <button
-                                                        onClick={() => alert('Silakan serahkan alat ke petugas di konter untuk memproses pengembalian. Petugas akan mengecek kondisi alat dan denda jika ada.')}
+                                                        onClick={() => handleRequestReturn(loan.id)}
                                                         className="btn btn-primary py-1 px-4 text-sm bg-mountain-600 hover:bg-mountain-700 flex items-center gap-1 shadow-sm"
                                                     >
                                                         <FiRotateCcw size={14} className="rotate-180" />
                                                         Kembalikan
                                                     </button>
+                                                )}
+                                                {isActive && loan.return_requested && (
+                                                    <span className="px-4 py-1 text-sm bg-blue-100 text-blue-700 rounded-md font-semibold">
+                                                        Menunggu Verifikasi
+                                                    </span>
                                                 )}
                                             </div>
                                         </div>

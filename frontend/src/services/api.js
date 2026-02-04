@@ -83,6 +83,7 @@ export const peminjamanAPI = {
     reject: (id, data) => api.put(`/peminjaman/${id}/reject`, data),
     getMyLoans: () => api.get('/peminjaman/my-loans'),
     updateOverdue: () => api.post('/peminjaman/update-overdue'),
+    requestReturn: (id) => api.post(`/peminjaman/${id}/request-return`),
 };
 
 export const pengembalianAPI = {

@@ -74,8 +74,8 @@ exports.getLaporanDenda = async (req, res) => {
             FROM pengembalian pg
             JOIN peminjaman p ON pg.peminjaman_id = p.id
             JOIN users u ON p.user_id = u.id
-            JOIN alat a ON p.alat_id = a.id
-            JOIN kategori k ON a.kategori_id = k.id
+            LEFT JOIN alat a ON p.alat_id = a.id
+            LEFT JOIN kategori k ON a.kategori_id = k.id
             WHERE pg.total_denda > 0
         `;
         let params = [];
@@ -145,6 +145,13 @@ exports.getDashboardStats = async (req, res) => {
              FROM peminjaman`
         );
 
+        // Pending return requests
+        const [pendingReturns] = await db.promisePool.execute(
+            `SELECT COUNT(*) as total_pending_returns
+             FROM peminjaman
+             WHERE return_requested = TRUE AND status IN ('Approved', 'Dipinjam', 'Terlambat')`
+        );
+
         // Total denda
         const [totalDenda] = await db.promisePool.execute(
             'SELECT SUM(total_denda) as total_denda FROM pengembalian'
@@ -165,6 +172,7 @@ exports.getDashboardStats = async (req, res) => {
                 alat: totalAlat[0],
                 users: totalUsers,
                 peminjaman: peminjamanStats[0],
+                pending_returns: pendingReturns[0].total_pending_returns || 0,
                 total_denda: parseFloat(totalDenda[0].total_denda) || 0,
                 recent_activities: recentActivities
             }

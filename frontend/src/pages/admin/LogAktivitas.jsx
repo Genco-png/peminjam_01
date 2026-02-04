@@ -10,12 +10,16 @@ const LogAktivitasPage = () => {
 
     useEffect(() => {
         fetchLogs();
+        const interval = setInterval(fetchLogs, 30000);
+        return () => clearInterval(interval);
     }, []);
 
     const fetchLogs = async () => {
         try {
             const response = await laporanAPI.getLogAktivitas();
-            setLogs(response.data.data);
+            if (response.data?.success) {
+                setLogs(response.data.data || []);
+            }
         } catch (error) {
             console.error('Error fetching logs:', error);
         } finally {
@@ -23,11 +27,14 @@ const LogAktivitasPage = () => {
         }
     };
 
-    const filteredLogs = logs.filter(log =>
-        log.user_nama?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.detail?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.aksi?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredLogs = logs.filter(log => {
+        const lowerSearch = searchTerm.toLowerCase();
+        return (
+            (log.user_nama || 'System').toLowerCase().includes(lowerSearch) ||
+            (log.detail || '').toLowerCase().includes(lowerSearch) ||
+            (log.aksi || '').toLowerCase().includes(lowerSearch)
+        );
+    });
 
     if (loading) {
         return (
@@ -65,9 +72,9 @@ const LogAktivitasPage = () => {
                         {filteredLogs.map((log) => (
                             <div key={log.id} className="flex items-start space-x-4 p-4 border-b border-gray-100 last:border-0 hover:bg-gray-50 rounded-lg transition-colors">
                                 <div className={`p-2 rounded-full ${log.aksi === 'LOGIN' ? 'bg-green-100 text-green-600' :
-                                        log.aksi === 'APPROVE' ? 'bg-blue-100 text-blue-600' :
-                                            log.aksi === 'REJECT' ? 'bg-red-100 text-red-600' :
-                                                'bg-gray-100 text-gray-600'
+                                    log.aksi === 'APPROVE' ? 'bg-blue-100 text-blue-600' :
+                                        log.aksi === 'REJECT' ? 'bg-red-100 text-red-600' :
+                                            'bg-gray-100 text-gray-600'
                                     }`}>
                                     <FiClock />
                                 </div>
@@ -78,7 +85,7 @@ const LogAktivitasPage = () => {
                                     </div>
                                     <p className="text-sm text-gray-700 mt-1">{log.detail}</p>
                                     <div className="flex mt-2 space-x-2">
-                                        <span className="text-[10px] font-bold px-2 py-0.5 bg-gray-200 text-gray-600 rounded uppercase">
+                                        <span className={`badge-${log.aksi?.toLowerCase()} text-[10px] font-bold px-2 py-0.5 rounded uppercase`}>
                                             {log.aksi}
                                         </span>
                                         <span className="text-[10px] font-bold px-2 py-0.5 bg-primary-100 text-primary-600 rounded uppercase">

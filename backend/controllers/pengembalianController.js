@@ -3,25 +3,49 @@ const db = require('../config/database');
 // Get all pengembalian
 exports.getAllPengembalian = async (req, res) => {
     try {
-        const [pengembalian] = await db.promisePool.execute(
-            `SELECT pg.*, 
-                   p.kode_peminjaman, p.tanggal_pinjam, p.tanggal_kembali_rencana,
+        // Fetch loans with return_requested = TRUE (pending returns)
+        const [pendingReturns] = await db.promisePool.execute(
+            `SELECT p.*, 
                    u.nama as nama_peminjam, u.username,
                    a.nama_alat, a.kode_alat,
                    k.nama_kategori,
-                   petugas.nama as processed_by_nama
-            FROM pengembalian pg
-            JOIN peminjaman p ON pg.peminjaman_id = p.id
+                   p.return_requested_at,
+                   -- Real-time late fee calculation
+                   CASE 
+                       WHEN p.status IN ('Approved', 'Dipinjam', 'Terlambat') AND p.tanggal_kembali_rencana < CURDATE()
+                       THEN fn_get_hari_terlambat(p.tanggal_kembali_rencana, CURDATE())
+                       ELSE 0
+                   END as hari_terlambat_sekarang,
+                   CASE 
+                       WHEN p.status IN ('Approved', 'Dipinjam', 'Terlambat') AND p.tanggal_kembali_rencana < CURDATE()
+                       THEN fn_calculate_denda(p.tanggal_kembali_rencana, CURDATE())
+                       ELSE 0
+                   END as denda_terlambat_sekarang
+            FROM peminjaman p
             JOIN users u ON p.user_id = u.id
-            JOIN alat a ON p.alat_id = a.id
-            JOIN kategori k ON a.kategori_id = k.id
-            LEFT JOIN users petugas ON pg.processed_by = petugas.id
-            ORDER BY pg.created_at DESC`
+            LEFT JOIN alat a ON p.alat_id = a.id
+            LEFT JOIN kategori k ON a.kategori_id = k.id
+            WHERE p.return_requested = TRUE 
+              AND p.status IN ('Approved', 'Dipinjam', 'Terlambat')
+            ORDER BY p.return_requested_at DESC`
         );
+
+        // Fetch detail items for each loan
+        for (let loan of pendingReturns) {
+            const [details] = await db.promisePool.execute(
+                `SELECT pd.*, a.nama_alat, a.kode_alat, a.harga_sewa, k.nama_kategori
+                 FROM peminjaman_detail pd
+                 JOIN alat a ON pd.alat_id = a.id
+                 JOIN kategori k ON a.kategori_id = k.id
+                 WHERE pd.peminjaman_id = ?`,
+                [loan.id]
+            );
+            loan.items = details;
+        }
 
         res.json({
             success: true,
-            data: pengembalian
+            data: pendingReturns
         });
 
     } catch (error) {
@@ -108,7 +132,7 @@ exports.processPengembalian = async (req, res) => {
         if (success) {
             res.json({
                 success: true,
-                message: message || 'Pengembalian processed successfully',
+                message: message || 'Pengembalian berhasil diproses',
                 data: {
                     total_denda: parseFloat(total_denda) || 0
                 }

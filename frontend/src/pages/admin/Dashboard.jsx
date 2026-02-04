@@ -9,12 +9,17 @@ const AdminDashboard = () => {
 
     useEffect(() => {
         fetchDashboardStats();
+        // Refresh stats every 30 seconds
+        const interval = setInterval(fetchDashboardStats, 30000);
+        return () => clearInterval(interval);
     }, []);
 
     const fetchDashboardStats = async () => {
         try {
             const response = await laporanAPI.getDashboardStats();
-            setStats(response.data.data);
+            if (response.data?.success) {
+                setStats(response.data.data);
+            }
         } catch (error) {
             console.error('Error fetching stats:', error);
         } finally {
@@ -53,6 +58,13 @@ const AdminDashboard = () => {
             subtitle: 'Peminjaman aktif',
             icon: FiClipboard,
             color: 'purple',
+        },
+        {
+            title: 'Permintaan Pengembalian',
+            value: stats?.pending_returns || 0,
+            subtitle: 'Menunggu verifikasi',
+            icon: FiTrendingUp,
+            color: 'green',
         },
         {
             title: 'Total Denda',

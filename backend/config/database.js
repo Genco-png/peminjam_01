@@ -15,24 +15,10 @@ const pool = mysql.createPool({
     keepAliveInitialDelay: 0
 });
 
-// Test connection
-pool.getConnection()
-    .then(connection => {
-        console.log('✅ MySQL Database connected successfully');
-        console.log(`📊 Database: ${process.env.DB_NAME || 'peminjaman_alat_gunung'}`);
-        connection.release();
-    })
-    .catch(err => {
-        console.error('❌ MySQL connection error:', err.message);
-        console.error('Please check your database configuration in .env file');
-    });
-
-// Export pool as promisePool for compatibility with existing code
-module.exports = {
+// Export pool
+const db = {
     pool,
     promisePool: pool,
-    
-    // Helper function for queries (for backward compatibility)
     async query(sql, params) {
         try {
             const [results] = await pool.execute(sql, params);
@@ -43,3 +29,31 @@ module.exports = {
         }
     }
 };
+
+// Test connection and auto-setup if needed
+async function testAndSetup() {
+    try {
+        const connection = await pool.getConnection();
+        console.log('✅ MySQL Database connected successfully');
+        console.log(`📊 Database: ${process.env.DB_NAME || 'peminjaman_alat_gunung'}`);
+        connection.release();
+    } catch (err) {
+        if (err.code === 'ER_BAD_DB_ERROR') {
+            console.log('⚠️ Database not found, attempting auto-setup...');
+            try {
+                const runSetup = require('../../database/setup');
+                await runSetup();
+                console.log('✅ Auto-setup complete, database is ready.');
+            } catch (setupErr) {
+                console.error('❌ Auto-setup failed:', setupErr.message);
+            }
+        } else {
+            console.error('❌ MySQL connection error:', err.message);
+            console.error('Please check your database configuration in .env file');
+        }
+    }
+}
+
+testAndSetup();
+
+module.exports = db;
