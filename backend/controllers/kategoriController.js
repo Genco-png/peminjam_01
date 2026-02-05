@@ -165,14 +165,14 @@ exports.deleteKategori = async (req, res) => {
 
         // Check if kategori has alat
         const [alat] = await db.promisePool.execute(
-            'SELECT COUNT(*) as count FROM alat WHERE kategori_id = ?',
+            'SELECT nama_alat FROM alat WHERE kategori_id = ?',
             [id]
         );
-
-        if (alat[0].count > 0) {
+        if (alat.length > 0) {
+            const alatNames = alat.map(a => a.nama_alat).join(', ');
             return res.status(400).json({
                 success: false,
-                message: 'Cannot delete kategori that has equipment'
+                message: `Tidak dapat menghapus kategori yang masih memiliki alat: ${alatNames}`
             });
         }
 

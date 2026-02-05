@@ -53,9 +53,9 @@ const AdminDashboard = () => {
             color: 'yellow',
         },
         {
-            title: 'Sedang Dipinjam',
-            value: (stats?.peminjaman?.approved || 0) + (stats?.peminjaman?.dipinjam || 0),
-            subtitle: 'Peminjaman aktif',
+            title: 'Alat Sedang Dipinjam',
+            value: stats?.peminjaman?.total_item_pinjam || 0,
+            subtitle: 'Total unit aktif',
             icon: FiClipboard,
             color: 'purple',
         },
@@ -104,7 +104,10 @@ const AdminDashboard = () => {
 
                 {/* Recent Activities */}
                 <div className="card">
-                    <h2 className="text-xl font-bold text-gray-900 mb-4">Aktivitas Terbaru</h2>
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-xl font-bold text-gray-900">Aktivitas Terbaru</h2>
+                        <a href="/admin/log" className="text-primary-600 hover:text-primary-800 text-sm font-medium">Lihat Semua →</a>
+                    </div>
                     <div className="space-y-3">
                         {stats?.recent_activities?.slice(0, 10).map((activity) => (
                             <div key={activity.id} className="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">

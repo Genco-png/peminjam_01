@@ -27,12 +27,23 @@ const PeminjamDashboard = () => {
     };
 
     // Calculate stats from my loans
+    // Calculate stats from my loans - summing actual units/items
+    const countItems = (statuses) => {
+        return loans
+            .filter(l => statuses.includes(l.status))
+            .reduce((sum, l) => {
+                const itemQuantity = l.is_multi_item
+                    ? (l.items?.reduce((s, i) => s + i.jumlah, 0) || 0)
+                    : (l.jumlah || 0);
+                return sum + itemQuantity;
+            }, 0);
+    };
+
     const stats = {
-        pending: loans.filter(l => l.status === 'Pending').length,
-        approved: loans.filter(l => l.status === 'Approved').length,
-        dipinjam: loans.filter(l => l.status === 'Dipinjam').length,
-        terlambat: loans.filter(l => l.status === 'Terlambat').length,
-        selesai: loans.filter(l => l.status === 'Selesai').length,
+        pending: countItems(['Pending']),
+        active: countItems(['Approved', 'Dipinjam', 'Terlambat']),
+        selesai: countItems(['Selesai']),
+        terlambat: countItems(['Terlambat']),
     };
 
     // Check for unreturned items (active loans)
@@ -62,8 +73,8 @@ const PeminjamDashboard = () => {
             color: 'yellow',
         },
         {
-            title: 'Sedang Dipinjam',
-            value: stats.dipinjam + stats.approved,
+            title: 'Alat Sedang Dipinjam',
+            value: stats.active,
             icon: FiPackage,
             color: 'blue',
         },

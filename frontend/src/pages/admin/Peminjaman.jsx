@@ -102,7 +102,15 @@ const PeminjamanPage = () => {
                                                 <div className="text-sm text-gray-900">{loan.nama_alat}</div>
                                                 <div className="text-xs text-gray-500">{loan.kode_alat}</div>
                                             </td>
-                                            <td className="px-6 py-4 text-sm text-gray-900">{loan.jumlah}</td>
+                                            <td className="px-6 py-4 text-sm text-gray-900">
+                                                {loan.is_multi_item
+                                                    ? `${loan.items?.reduce((s, i) => s + i.jumlah, 0) || 0} items`
+                                                    : loan.jumlah
+                                                }
+                                                {loan.is_multi_item && (
+                                                    <div className="text-[10px] text-primary-600 font-bold uppercase">Multi-item</div>
+                                                )}
+                                            </td>
                                             <td className="px-6 py-4 text-sm text-gray-900">
                                                 {format(new Date(loan.tanggal_pinjam), 'dd/MM/yyyy')}
                                             </td>

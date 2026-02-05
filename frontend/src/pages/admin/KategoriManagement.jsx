@@ -46,12 +46,17 @@ const KategoriManagement = () => {
 
     const handleDelete = async (id) => {
         if (!confirm('Yakin ingin menghapus kategori ini?')) return;
+
         try {
-            await kategoriAPI.delete(id);
-            alert('Kategori berhasil dihapus');
+            setLoading(true);
+            const response = await kategoriAPI.delete(id);
+            alert(response.data.message || 'Kategori berhasil dihapus');
             fetchKategori();
         } catch (error) {
+            console.error('Delete error:', error);
             alert(error.response?.data?.message || 'Gagal menghapus kategori');
+        } finally {
+            setLoading(false);
         }
     };
 

@@ -133,7 +133,7 @@ exports.getDashboardStats = async (req, res) => {
              GROUP BY r.id, r.nama_role`
         );
 
-        // Peminjaman statistics
+        // Peminjaman statistics with item counts
         const [peminjamanStats] = await db.promisePool.execute(
             `SELECT 
                 COUNT(*) as total_peminjaman,
@@ -141,7 +141,12 @@ exports.getDashboardStats = async (req, res) => {
                 SUM(CASE WHEN status = 'Approved' THEN 1 ELSE 0 END) as approved,
                 SUM(CASE WHEN status = 'Dipinjam' THEN 1 ELSE 0 END) as dipinjam,
                 SUM(CASE WHEN status = 'Terlambat' THEN 1 ELSE 0 END) as terlambat,
-                SUM(CASE WHEN status = 'Selesai' THEN 1 ELSE 0 END) as selesai
+                SUM(CASE WHEN status = 'Selesai' THEN 1 ELSE 0 END) as selesai,
+                -- Count total items for active loans
+                (SELECT SUM(pd.jumlah) 
+                 FROM peminjaman_detail pd 
+                 JOIN peminjaman p2 ON pd.peminjaman_id = p2.id 
+                 WHERE p2.status IN ('Approved', 'Dipinjam', 'Terlambat')) as total_item_pinjam
              FROM peminjaman`
         );
 

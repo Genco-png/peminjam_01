@@ -72,7 +72,7 @@ CREATE TABLE peminjaman (
     kode_peminjaman VARCHAR(50) UNIQUE,
     user_id INT NOT NULL,
     alat_id INT NULL, -- Nullable for multi-item loans
-    jumlah INT NOT NULL DEFAULT 1,
+    jumlah INT NULL DEFAULT 1,
     is_multi_item BOOLEAN DEFAULT FALSE,
     tanggal_pinjam DATE NOT NULL,
     tanggal_kembali_rencana DATE NOT NULL,
@@ -87,7 +87,7 @@ CREATE TABLE peminjaman (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT,
-    FOREIGN KEY (alat_id) REFERENCES alat(id) ON DELETE RESTRICT,
+    FOREIGN KEY (alat_id) REFERENCES alat(id) ON DELETE SET NULL,
     FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_user (user_id),
     INDEX idx_status (status),
@@ -213,6 +213,16 @@ BEGIN
     RETURN v_denda;
 END//
 
+CREATE FUNCTION fn_generate_kode_alat() RETURNS VARCHAR(50)
+READS SQL DATA
+BEGIN
+    DECLARE v_kode VARCHAR(50);
+    DECLARE v_counter INT;
+    SELECT COUNT(*) + 1 INTO v_counter FROM alat;
+    SET v_kode = CONCAT('ALAT-', LPAD(v_counter, 4, '0'));
+    RETURN v_kode;
+END//
+
 -- ============================================
 -- 3. STORED PROCEDURES
 -- ============================================
@@ -277,6 +287,28 @@ BEGIN
     END IF;
 END//
 
+CREATE PROCEDURE sp_reject_peminjaman(
+    IN p_peminjaman_id INT,
+    IN p_admin_id INT,
+    IN p_catatan TEXT,
+    OUT p_success BOOLEAN,
+    OUT p_message VARCHAR(255)
+)
+BEGIN
+    DECLARE v_status VARCHAR(20);
+    
+    SELECT status INTO v_status FROM peminjaman WHERE id = p_peminjaman_id;
+    
+    IF v_status IS NULL THEN
+        SET p_success = FALSE; SET p_message = 'Peminjaman not found';
+    ELSEIF v_status != 'Pending' THEN
+        SET p_success = FALSE; SET p_message = CONCAT('Cannot reject status: ', v_status);
+    ELSE
+        UPDATE peminjaman SET status = 'Rejected', approved_by = p_admin_id, approved_at = NOW(), catatan_approval = p_catatan WHERE id = p_peminjaman_id;
+        SET p_success = TRUE; SET p_message = 'Rejected successfully';
+    END IF;
+END//
+
 CREATE PROCEDURE sp_process_pengembalian(
     IN p_peminjaman_id INT,
     IN p_tanggal_kembali DATE,
@@ -315,6 +347,36 @@ BEGIN
     END IF;
 END//
 
+CREATE PROCEDURE sp_get_laporan_peminjaman(
+    IN p_start_date DATE,
+    IN p_end_date DATE
+)
+BEGIN
+    SELECT p.*, 
+           u.nama as nama_peminjam, u.username,
+           a.nama_alat, a.kode_alat,
+           k.nama_kategori
+    FROM peminjaman p
+    JOIN users u ON p.user_id = u.id
+    LEFT JOIN alat a ON p.alat_id = a.id
+    LEFT JOIN kategori k ON a.kategori_id = k.id
+    WHERE p.tanggal_pinjam BETWEEN p_start_date AND p_end_date
+    ORDER BY p.tanggal_pinjam DESC;
+END//
+
+CREATE PROCEDURE sp_get_alat_populer(
+    IN p_limit INT
+)
+BEGIN
+    SELECT a.nama_alat, k.nama_kategori, COUNT(pd.id) as total_pinjam
+    FROM alat a
+    JOIN kategori k ON a.kategori_id = k.id
+    LEFT JOIN peminjaman_detail pd ON a.id = pd.alat_id
+    GROUP BY a.id
+    ORDER BY total_pinjam DESC
+    LIMIT p_limit;
+END//
+
 -- ============================================
 -- 4. TRIGGERS
 -- ============================================
@@ -323,6 +385,11 @@ CREATE TRIGGER trg_before_peminjaman_insert BEFORE INSERT ON peminjaman FOR EACH
 BEGIN
     IF NEW.kode_peminjaman IS NULL OR NEW.kode_peminjaman = '' THEN SET NEW.kode_peminjaman = fn_generate_kode_peminjaman(); END IF;
     IF NEW.tanggal_pinjam IS NULL THEN SET NEW.tanggal_pinjam = CURDATE(); END IF;
+END//
+
+CREATE TRIGGER trg_before_alat_insert BEFORE INSERT ON alat FOR EACH ROW
+BEGIN
+    IF NEW.kode_alat IS NULL OR NEW.kode_alat = '' THEN SET NEW.kode_alat = fn_generate_kode_alat(); END IF;
 END//
 
 CREATE TRIGGER trg_after_peminjaman_insert AFTER INSERT ON peminjaman FOR EACH ROW
